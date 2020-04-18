@@ -10,7 +10,7 @@ A configuration json "appsettings.json" is shipped with the application.  This f
 
 Please go to their [github](https://github.com/opentrack/opentrack) to get more information on how to configure and use OpenTrack.
 
-OpenTrack should be running with its output set to "UDP over network".  To match the default settings of this project, you will need to click wrench icon and chanage the the ip to "127.0.0.1".  Alternatively, you can modify this application's json configuration.
+OpenTrack should be running with its output set to "UDP over network".  To match the default settings of this project, you will need to click the wrench icon and change the the ip to "127.0.0.1".  Alternatively, you can modify this application's json configuration.
 
 ## DSU Clients
 
