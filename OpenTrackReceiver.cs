@@ -30,13 +30,8 @@ namespace OpenTrackToDSUProtocol
 
         private ConcurrentQueue<OpenTrackData> _queued_items = new ConcurrentQueue<OpenTrackData>();
 
-        private double _last_received_x = 0.0;
-        private double _last_received_y = 0.0;
-        private double _last_received_z = 0.0;
-
-        private double _last_received_yaw = 0.0;
-        private double _last_received_pitch = 0.0;
-        private double _last_received_roll = 0.0;
+        // Last received opentrack data (x, y, z, yaw, pitch, roll)
+        double[] _last_received_opentrack_data = new double[6];
 
         private DateTime? _last_time = null;
         private long _total_packets = 0;
@@ -125,19 +120,17 @@ namespace OpenTrackToDSUProtocol
                         return;
                     }
 
-                    double x = BitConverter.ToDouble(received_bytes, 0);
-                    double y = BitConverter.ToDouble(received_bytes, 8);
-                    double z = BitConverter.ToDouble(received_bytes, 16);
-
-                    double yaw = BitConverter.ToDouble(received_bytes, 24);
-                    double pitch = BitConverter.ToDouble(received_bytes, 32);
-                    double roll = BitConverter.ToDouble(received_bytes, 40);
+                    double[] received_values = new double[6];
+                    for (int i = 0; i < received_values.Length; i++)
+                    {
+                        received_values[i] = BitConverter.ToDouble(received_bytes, i*8);
+                    }
                     _waiting_on_packet = false;
 
                     if (_dsu_server == null)
                     {
                         // Debug mode, just send the raw open-track data
-                        _queued_items.Enqueue(new OpenTrackData { x = x, y = y, z = z, yaw = yaw, pitch = pitch, roll = roll });
+                        _queued_items.Enqueue(new OpenTrackData { x = received_values[0], y = received_values[1], z = received_values[2], yaw = received_values[3], pitch = received_values[4], roll = received_values[5] });
                     }
                     else
                     {
@@ -145,15 +138,12 @@ namespace OpenTrackToDSUProtocol
                         // or "stop" has been pressed
                         // in either case, we should send a packet with no motion
 
-                        if (x == 0 && y == 0 && z == 0 && yaw == 0 && pitch == 0 && roll == 0)
+                        if (Array.TrueForAll(received_values, value => value == 0.0))
                         {
-                            _last_received_x = 0;
-                            _last_received_y = 0;
-                            _last_received_z = 0;
-
-                            _last_received_yaw = 0;
-                            _last_received_pitch = 0;
-                            _last_received_roll = 0;
+                            for (int i = 0; i < _last_received_opentrack_data.Length; i++)
+                            {
+                                _last_received_opentrack_data[i] = 0.0;
+                            }
 
                             _total_packets = 0;
                             _last_time = null;
@@ -162,13 +152,20 @@ namespace OpenTrackToDSUProtocol
                         }
                         else
                         {
-                            var x_diff = x - _last_received_x;
-                            var y_diff = y - _last_received_y;
-                            var z_diff = z - _last_received_z;
+                            double half_turn = 180.0;
+                            double full_turn = 360.0;
 
-                            var yaw_diff = yaw - _last_received_yaw;
-                            var pitch_diff = pitch - _last_received_pitch;
-                            var roll_diff = roll - _last_received_roll;
+                            double[] diffs = new double[6];
+                            for (int i = 0; i < received_values.Length; i++)
+                            {
+                                diffs[i] = received_values[i] - _last_received_opentrack_data[i];
+                                if (Math.Abs(diffs[i]) > half_turn)
+                                {
+                                    diffs[i] -= Math.CopySign(full_turn, diffs[i]);
+                                }
+                            }
+
+                            _total_packets++;
 
                             double value_per_second;
                             if (_last_time == null)
@@ -182,21 +179,17 @@ namespace OpenTrackToDSUProtocol
                                 value_per_second = (_total_packets * 1000) / time_diff.TotalMilliseconds;
                             }
 
-                            _total_packets++;
+                            for (int i = 0; i < received_values.Length; i++)
+                            {
+                                diffs[i] *= value_per_second;
+                            }
 
-                            yaw_diff *= value_per_second;
-                            pitch_diff *= value_per_second;
-                            roll_diff *= value_per_second;
+                            _queued_items.Enqueue(new OpenTrackData { x = diffs[0], y = diffs[1], z = diffs[2], yaw = diffs[3], pitch = diffs[4], roll = diffs[5] });
 
-                            _queued_items.Enqueue(new OpenTrackData { x = x_diff, y = y_diff, z = z_diff, yaw = yaw_diff, pitch = pitch_diff, roll = roll_diff });
-
-                            _last_received_x = x;
-                            _last_received_y = y;
-                            _last_received_z = z;
-
-                            _last_received_yaw = yaw;
-                            _last_received_pitch = pitch;
-                            _last_received_roll = roll;
+                            for (int i = 0; i < received_values.Length; i++)
+                            {
+                                _last_received_opentrack_data[i] = received_values[i];
+                            }
                         }
                     }
                 }
@@ -207,13 +200,10 @@ namespace OpenTrackToDSUProtocol
                     uint SIO_UDP_CONNRESET = IOC_IN | IOC_VENDOR | 12;
                     _socket.IOControl((int)SIO_UDP_CONNRESET, new byte[] { Convert.ToByte(false) }, null);
 
-                    _last_received_x = 0;
-                    _last_received_y = 0;
-                    _last_received_z = 0;
-
-                    _last_received_yaw = 0;
-                    _last_received_pitch = 0;
-                    _last_received_roll = 0;
+                    for (int i = 0; i < _last_received_opentrack_data.Length; i++)
+                    {
+                        _last_received_opentrack_data[i] = 0.0;
+                    }
                 }
 
             }, null);
