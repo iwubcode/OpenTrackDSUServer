@@ -34,7 +34,6 @@ namespace OpenTrackToDSUProtocol
         double[] _last_received_opentrack_data = new double[6];
 
         private DateTime? _last_time = null;
-        private long _total_packets = 0;
 
         public OpenTrackReceiver(string ip, int port)
         {
@@ -125,7 +124,6 @@ namespace OpenTrackToDSUProtocol
                     {
                         received_values[i] = BitConverter.ToDouble(received_bytes, i*8);
                     }
-                    _waiting_on_packet = false;
 
                     if (_dsu_server == null)
                     {
@@ -145,7 +143,6 @@ namespace OpenTrackToDSUProtocol
                                 _last_received_opentrack_data[i] = 0.0;
                             }
 
-                            _total_packets = 0;
                             _last_time = null;
 
                             _queued_items.Enqueue(new OpenTrackData {});
@@ -165,23 +162,17 @@ namespace OpenTrackToDSUProtocol
                                 }
                             }
 
-                            _total_packets++;
-
-                            double value_per_second;
-                            if (_last_time == null)
+                            double delta = 1.0;
+                            if (_last_time != null)
                             {
-                                value_per_second = 1.0;
-                                _last_time = DateTime.UtcNow;
-                            }
-                            else
-                            {
-                                var time_diff = DateTime.UtcNow - _last_time.Value;
-                                value_per_second = (_total_packets * 1000) / time_diff.TotalMilliseconds;
+                                delta = (DateTime.UtcNow.Ticks - _last_time.Value.Ticks) / 10000000.0;
                             }
 
-                            for (int i = 0; i < received_values.Length; i++)
+                            _last_time = DateTime.UtcNow;
+
+                            for (int i = 0; i < diffs.Length; i++)
                             {
-                                diffs[i] *= value_per_second;
+                                diffs[i] /= delta;
                             }
 
                             _queued_items.Enqueue(new OpenTrackData { x = diffs[0], y = diffs[1], z = diffs[2], yaw = diffs[3], pitch = diffs[4], roll = diffs[5] });
@@ -192,6 +183,8 @@ namespace OpenTrackToDSUProtocol
                             }
                         }
                     }
+
+                    _waiting_on_packet = false;
                 }
                 catch (SocketException)
                 {
