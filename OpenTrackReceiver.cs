@@ -35,19 +35,27 @@ namespace OpenTrackToDSUProtocol
 
         private DateTime? _last_time = null;
 
-        public OpenTrackReceiver(string ip, int port)
+        private bool _relative_data = false;
+        private bool _divide_by_gravity = false;
+
+        public OpenTrackReceiver(string ip, int port, bool relative, bool divide_by_gravity)
         {
             _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.ReuseAddress, true);
             _socket.Bind(new IPEndPoint(IPAddress.Parse(ip), port));
+
+            _relative_data = relative;
+            _divide_by_gravity = divide_by_gravity;
 
             Console.WriteLine($"OpenTrack receiver listening on ip '{ip}' and port '{port.ToString()}'");
         }
 
-        public OpenTrackReceiver(string ip, int port, DSUServer dsu_server)
+        public OpenTrackReceiver(string ip, int port, DSUServer dsu_server, bool relative, bool divide_by_gravity)
         {
             _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.ReuseAddress, true);
             _socket.Bind(new IPEndPoint(IPAddress.Parse(ip), port));
             _dsu_server = dsu_server;
+            _relative_data = relative;
+            _divide_by_gravity = divide_by_gravity;
 
             Console.WriteLine($"OpenTrack receiver listening on ip '{ip}' and port '{port.ToString()}'");
         }
@@ -132,6 +140,8 @@ namespace OpenTrackToDSUProtocol
                     }
                     else
                     {
+                        double gravity = 9.80665;
+
                         // Zeros are a special value, if they are sent, the user is either perfectly still
                         // or "stop" has been pressed
                         // in either case, we should send a packet with no motion
@@ -147,7 +157,7 @@ namespace OpenTrackToDSUProtocol
 
                             _queued_items.Enqueue(new OpenTrackData {});
                         }
-                        else
+                        else if (_relative_data)
                         {
                             double half_turn = 180.0;
                             double full_turn = 360.0;
@@ -175,11 +185,29 @@ namespace OpenTrackToDSUProtocol
                                 diffs[i] /= delta;
                             }
 
-                            _queued_items.Enqueue(new OpenTrackData { x = diffs[0], y = diffs[1], z = diffs[2], yaw = diffs[3], pitch = diffs[4], roll = diffs[5] });
+                            if (_divide_by_gravity)
+                            {
+                                _queued_items.Enqueue(new OpenTrackData { x = diffs[0] / gravity, y = diffs[1] / gravity, z = diffs[2] / gravity, yaw = diffs[3], pitch = diffs[4], roll = diffs[5] });
+                            }
+                            else
+                            {
+                                _queued_items.Enqueue(new OpenTrackData { x = diffs[0], y = diffs[1], z = diffs[2], yaw = diffs[3], pitch = diffs[4], roll = diffs[5] });
+                            }
 
                             for (int i = 0; i < received_values.Length; i++)
                             {
                                 _last_received_opentrack_data[i] = received_values[i];
+                            }
+                        }
+                        else
+                        {
+                            if (_divide_by_gravity)
+                            {
+                                _queued_items.Enqueue(new OpenTrackData { x = received_values[0] / gravity, y = received_values[1] / gravity, z = received_values[2] / gravity, yaw = received_values[3], pitch = received_values[4], roll = received_values[5] });
+                            }
+                            else
+                            {
+                                _queued_items.Enqueue(new OpenTrackData { x = received_values[0], y = received_values[1], z = received_values[2], yaw = received_values[3], pitch = received_values[4], roll = received_values[5] });
                             }
                         }
                     }

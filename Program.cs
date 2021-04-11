@@ -48,14 +48,26 @@ namespace OpenTrackToDSUProtocol
                 return;
             }
 
+            bool? relative_data = configuration.GetValue<bool?>("RelativeData");
+            if (relative_data == null)
+            {
+                relative_data = true;
+            }
+
+            bool? divide_by_gravity = configuration.GetValue<bool?>("DivideByGravity");
+            if (divide_by_gravity == null)
+            {
+                divide_by_gravity = true;
+            }
+
             OpenTrackReceiver receiver = null;
             if (server == null)
             {
-                receiver = new OpenTrackReceiver(open_track_ip, open_track_port.Value);
+                receiver = new OpenTrackReceiver(open_track_ip, open_track_port.Value, relative_data.Value, divide_by_gravity.Value);
             }
             else
             {
-                receiver = new OpenTrackReceiver(open_track_ip, open_track_port.Value, server);
+                receiver = new OpenTrackReceiver(open_track_ip, open_track_port.Value, server, relative_data.Value, divide_by_gravity.Value);
             }
 
             receiver.Start();

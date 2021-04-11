@@ -520,8 +520,6 @@ namespace OpenTrackToDSUProtocol
                 while (Running)
                 {
                     ReceiveUDPPacket();
-
-                    
                 }
             });
             _packet_receive_thread.Start();
@@ -559,14 +557,17 @@ namespace OpenTrackToDSUProtocol
                         uint IOC_VENDOR = 0x18000000;
                         uint SIO_UDP_CONNRESET = IOC_IN | IOC_VENDOR | 12;
                         _socket.IOControl((int)SIO_UDP_CONNRESET, new byte[] { Convert.ToByte(false) }, null);
+                        _waiting_on_packet = false;
                     }
                     catch
                     {
+                        _waiting_on_packet = false;
                     }
                 }, null);
             }
             catch
             {
+                _waiting_on_packet = false;
             }
         }
 
